@@ -1,0 +1,249 @@
+unit dmmysql;
+
+interface
+
+uses
+  FastShareMem, SysUtils, Classes, DB, mySQLDbTables;
+
+type
+  TDataModuleMySQL = class(TDataModule)
+    mySQLDatabase: TmySQLDatabase;
+    mySQLQuery: TmySQLQuery;
+    procedure DataModuleDestroy(Sender: TObject);
+  private
+    { Private declarations }
+  public
+    { Public declarations }
+    function GetDonorData(TheParams: string): string;
+    function ExecuteSelect(TheParams: TStrings): string;
+    function ExecuteInsert(TheParams: TStrings): string;
+    function ExecuteUpdate(TheParams: TStrings): string;
+    function ExecuteDelete(TheParams: TStrings): string;
+  end;
+
+var
+  DataModuleMySQL: TDataModuleMySQL;
+procedure RVExtension(toArma: PAnsiChar; outputSize: Integer; fromArma: PAnsiChar); stdcall; export;
+function ExecuteFunction(TheName: string; Parameters: TStrings): string;
+procedure SetupConnection(var TheDB: TMySQLDatabase; var TheQ: TMySQLQuery);
+
+implementation
+
+{$R *.dfm}
+
+procedure RVExtension(toArma: PAnsiChar; outputSize: Integer; fromArma: PAnsiChar); stdcall; export;
+var
+  FunctionName: string;
+  LineString, ParamString: string;
+  Params: TStringList;
+begin
+  FunctionName := copy(string(fromArma), 1, pos(':', string(fromArma)) - 1);
+  LineString := copy(string(fromArma), length(FunctionName) + 2, length(string(fromArma)));
+  FunctionName := FunctionName + ':' + copy(string(LineString), 1, pos(':', string(LineString)) - 1);
+  LineString := copy(string(fromArma), length(FunctionName) + 2, length(string(fromArma)));
+  Params := TStringList.Create;
+  try
+    Params.Clear;
+    repeat
+      if pos(':', LineString) > 0 then
+        ParamString := copy(LineString, 1, pos(':', LineString) - 1)
+      else
+        ParamString := LineString;
+      LineString := copy(LineString, pos(':', LineString) - 1, length(ParamString));
+      Params.Add(ParamString);
+      ParamString := EmptyStr;
+    until (LineString = EmptyStr) or (pos(':', LineString) = 0);
+    SetLength(LineString,outputSize);
+    LineString := ExecuteFunction(FunctionName, Params);
+    StrPCopy(toArma, LineString);
+  finally
+    FreeAndNil(Params);
+  end;
+end;
+
+function ExecuteFunction(TheName: string; Parameters: TStrings): string;
+var
+  DM: TDataModuleMySQL;
+  TmpName: string;
+begin
+  DM := TDataModuleMySQL.Create(nil);
+  try
+    TmpName := trim(lowercase(TheName));
+    with DM do
+      begin
+        SetupConnection(mySQLDatabase, mySQLQuery);
+        if TheName = 'CHILD:069' then
+          Result := GetDonorData(Parameters[0]);
+{        if TheName = 'select' then
+          Result := ExecuteSelect(Parameters);
+        if TheName = 'insert' then
+          Result := ExecuteInsert(Parameters);
+        if TheName = 'update' then
+          Result := ExecuteUpdate(Parameters);
+        if TheName = 'delete' then
+          Result := ExecuteDelete(Parameters);   //}
+      end;
+  finally
+    FreeAndNil(DM);
+  end;
+end;
+
+procedure SetupConnection(var TheDB: TMySQLDatabase; var TheQ: TMySQLQuery);
+begin
+//do custom retrieval of host information here
+  with TheDB do
+    begin
+      DatabaseName := 'test';
+      UserName := 'ndavalos';
+      UserPassword := 'boolean1012557';
+      Host := 'quack-web';
+    end;
+  with TheQ do
+    begin
+      Database := TheDB;
+      SQL.Clear;
+    end;
+end;
+
+
+procedure TDataModuleMySQL.DataModuleDestroy(Sender: TObject);
+begin
+  if mySQLQuery.Active then
+    mySQLQuery.Close;
+  mySQLQuery.Database := nil;
+  if mySQLDatabase.Connected then
+    mySQLDatabase.Close
+end;
+
+function TDataModuleMySQL.GetDonorData(TheParams: string): string;
+var
+  I: integer;
+begin
+  Result := '[';
+  try
+    try
+      with mySQLQuery, mySQLQuery.SQL do
+        begin
+          Clear;
+          Add('select donor_data from banking_data where playeruid = ' + quotedstr(TheParams));
+//          AddStrings(TheParams);
+          Open;
+          Result := '[PASS,' + FieldByName('donor_data').asString + ']';
+          Close;
+        end; //with mySQLQuery, mySQLQuery.SQL do
+    except
+      on E: exception do
+        Result := '[ERROR,E.Message]';
+    end;
+  finally
+    if mySQLQuery.Active then
+      mySQLQuery.Close;
+  end;
+end;
+
+function TDataModuleMySQL.ExecuteSelect(TheParams: TStrings): string;
+var
+  I: integer;
+begin
+  Result := EmptyStr;
+  try
+    try
+      with mySQLQuery, mySQLQuery.SQL do
+        begin
+          Clear;
+          AddStrings(TheParams);
+          Open;
+          while not EOF do
+            begin
+              for I := 0 to FieldCount - 1 do
+                begin
+                  Result := Result + Fields[I].asString;
+                  Result := Result + '|';
+                end;
+              Result := Result + '#EOL#';
+              Next;
+            end; //while not EOF do
+          Result := Result + '#EOF#';
+        end; //with mySQLQuery, mySQLQuery.SQL do
+    except
+      on E: exception do
+        Result := E.Message;
+    end;
+  finally
+    if mySQLQuery.Active then
+      mySQLQuery.Close;
+  end;
+end;
+
+function TDataModuleMySQL.ExecuteInsert(TheParams: TStrings): string;
+var
+  I: integer;
+begin
+  Result := EmptyStr;
+  try
+    try
+      with mySQLQuery, mySQLQuery.SQL do
+        begin
+          Clear;
+          AddStrings(TheParams);
+          ExecSQL;
+          Result := 'successful rows affected: ' + IntToStr(RowsAffected) + '|' + '#EOF#';
+        end; //with mySQLQuery, mySQLQuery.SQL do
+    except
+      on E: exception do
+        Result := E.Message;
+    end;
+  finally
+    if mySQLQuery.Active then
+      mySQLQuery.Close;
+  end;
+end;
+
+function TDataModuleMySQL.ExecuteUpdate(TheParams: TStrings): string;
+var
+  I: integer;
+begin
+  Result := EmptyStr;
+  try
+    try
+      with mySQLQuery, mySQLQuery.SQL do
+        begin
+          Clear;
+          AddStrings(TheParams);
+          ExecSQL;
+          Result := 'successful rows affected: ' + IntToStr(RowsAffected) + '|' + '#EOF#';
+        end; //with mySQLQuery, mySQLQuery.SQL do
+    except
+      on E: exception do
+        Result := E.Message;
+    end;
+  finally
+    if mySQLQuery.Active then
+      mySQLQuery.Close;
+  end;
+end;
+
+function TDataModuleMySQL.ExecuteDelete(TheParams: TStrings): string;
+var
+  I: integer;
+begin
+  Result := EmptyStr;
+  try
+    try
+      with mySQLQuery, mySQLQuery.SQL do
+        begin
+          Clear;
+          AddStrings(TheParams);
+          ExecSQL;
+          Result := 'successful rows affected: ' + IntToStr(RowsAffected) + '|' + '#EOF#';
+        end; //with mySQLQuery, mySQLQuery.SQL do
+    except
+      on E: exception do
+        Result := E.Message;
+    end;
+  finally
+    if mySQLQuery.Active then
+      mySQLQuery.Close;
+  end;
+end;
+end.
