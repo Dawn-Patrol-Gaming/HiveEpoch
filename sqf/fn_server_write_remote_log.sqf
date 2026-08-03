@@ -6,4 +6,4 @@ _filename = ((_this select 0) select 2) select 0;
 _remoteLog = tostring(((_this select 0) select 2) select 1);
 
 diag_log _remoteLog;
-"dzfunctions" callExtension format["writeLog:%1:%2", _filename, _remoteLog];
+"hiveext" callExtension format["writeLog:%1:%2", _filename, _remoteLog];
