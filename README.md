@@ -10,3 +10,6 @@ This is a direct replacement that can replace the original hiveext.dll. The main
 This also provides the same structure and format as extdb2.dll for Arma 3, enabling you to access custom SQL from an additional ini file named dbfunctions.ini
 
 In the releases is a copy of HiveExt.dll and a testing app. Since most people won't be able to compile from source unless they own a copy of Embarcadero's Delphi (or RAD Studio) and the associated 3rd party components: Devart UniDAC, I've attached precompiled binaries to this repo.
+
+Examples on how to use custom queries:
+https://github.com/Dawn-Patrol-Gaming/HiveEpoch/blob/main/sqf/readme.md
