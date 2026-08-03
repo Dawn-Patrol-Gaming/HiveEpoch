@@ -35,7 +35,7 @@ _dbcall = _function;
 //_dbcall = format[_dbcall,_params];
 if (Debug_DBFunctions) then {diag_log format["_dbcall: %1",_dbcall];};
 
-_data = "dzfunctions" callExtension _dbcall;
+_data = "hiveext" callExtension _dbcall;
 if (Debug_DBFunctions) then {diag_log format["_data %1",_data];};
 
 _mgs = call compile _data;
