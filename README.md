@@ -1,7 +1,7 @@
 # HiveEpoch
 Replacement for Arma 2 OA DayZ Epoch HiveExt.dll
 
-Direct port of https://github.com/icomrade/icomradeHiveEpoch
+Direct port of https://github.com/icomrade/icomradeHiveEpoch and https://github.com/vbawol/DayZhiveEpoch
 
 This version of HiveExt does not require C++ runtimes, database connectivity dependencies or memory management dependencies like tbb.dll or tbbmalloc.dll like the original(s).
 
