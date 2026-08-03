@@ -29,7 +29,7 @@ type
     function LoadObjects(TheParams: string): AnsiString;
     function GetNextObject(TheParams: string): AnsiString;
     function CreateObjects(TheParams: TStrings): AnsiString;
-    function MaintainArea(TheParams: TStrings): AnsiString;
+    //function MaintainArea(TheParams: TStrings): AnsiString; //appears to be deprecated
 
   public
     { Public declarations }
@@ -56,33 +56,42 @@ begin
   if DataModuleMySQL = nil then
     DataModuleMySQL := TDataModuleMySQL.Create(nil);
   try
-    TmpName := trim(lowercase(TheName));
-    with DataModuleMySQL do
-    begin
-      SetupConnection(mySQLDatabase, mySQLQuery);
-      if lowercase(TmpName) = 'initialize' then
-        Result := InitializeDLL(Parameters)
-      else if lowercase(TmpName) = 'deinitialize' then
-        Result := DeInitializeDLL
-      else if lowercase(TmpName) = 'writelog' then
-        Result := WriteLog(Parameters)
-      else if lowercase(TmpName) = 'loadobjects' then
-        Result := LoadObjects(Parameters[0])
-      else if lowercase(TmpName) = 'createobjects' then
-        Result := CreateObjects(Parameters)
-      else if lowercase(TmpName) = 'getnextobject' then
-        Result := GetNextObject(Parameters[0])
-      else if lowercase(TmpName) = 'maintainarea' then
-        Result := MaintainArea(Parameters)
-      else
-        Result := ExecuteQuery(TmpName, Parameters);
-    end;//with DataModuleMySQL do
-  except
-    on E: exception do
-      if Result = AnsiString(EmptyStr) then
-        Result := '["ERROR","' + AnsiString(E.Message) + '"]'
-      else
-        Result := Result + ',"' + AnsiString(E.Message) + '"]';
+    try
+      TmpName := trim(lowercase(TheName));
+      with DataModuleMySQL do
+      begin
+        SetupConnection(mySQLDatabase, mySQLQuery);
+        if lowercase(TmpName) = 'initialize' then
+          Result := InitializeDLL(Parameters)
+        else if lowercase(TmpName) = 'deinitialize' then
+          Result := DeInitializeDLL
+        else if lowercase(TmpName) = 'writelog' then
+          Result := WriteLog(Parameters)
+        else if lowercase(TmpName) = 'loadobjects' then
+          Result := LoadObjects(Parameters[0])
+        else if lowercase(TmpName) = 'createobjects' then
+          Result := CreateObjects(Parameters)
+        else if lowercase(TmpName) = 'getnextobject' then
+          Result := GetNextObject(Parameters[0])
+            //this maintainarea seems to be deprecated now, doesn't appear to be called from my sqf anymore
+            //looks like i just call an update query using maintainObjectListObjectData from dbfunctions.ini now
+            //that is much easier and doesn't have logic with logging maintenance that may not be used by others
+            {        else if lowercase(TmpName) = 'maintainarea' then
+                      Result := MaintainArea(Parameters) //}
+        else
+          Result := ExecuteQuery(TmpName, Parameters);
+
+        // Result := AnsiString('["ERROR","Invalid function called: ' + TheName + '"]');
+      end;
+    except
+      on E: exception do
+        if Result = AnsiString(EmptyStr) then
+          Result := '["ERROR","' + AnsiString(E.Message) + '"]'
+        else
+          Result := Result + ',"' + AnsiString(E.Message) + '"]';
+    end;
+  finally
+    // FreeAndNil(DataModuleMySQL);
   end;
   if DebugLog then
     LogIt('End: function ExecuteFunction(TheName: string = ' + TheName + '; Parameters: TStrings = ' + StringReplace(Parameters.Text, #13#10, ' ',
@@ -260,7 +269,7 @@ var
 
           TheQ.SQL.Text := StringReplace(TheQ.SQL.Text, ':param' + IntToStr(TheCounter + 1), TheVal, [rfReplaceAll, rfIgnoreCase]);
           CanDoPrepare := false;
-        end//if pos('-ARRAY', Item) > 0 then
+        end //if pos('-ARRAY', Item) > 0 then
         else
         begin
           // fix for sending double quotes sometimes
@@ -268,18 +277,18 @@ var
           if (copy(TheVal, 1, 1) = '"') and (copy(TheVal, length(TheVal), 1) = '"') then
             TheVal := copy(TheVal, 2, length(TheVal) - 2);
           TheQ.Params[TheCounter].Value := TheVal;
-        end;//if..then..else if pos('-ARRAY', Item) > 0 then
+        end; //if..then..else if pos('-ARRAY', Item) > 0 then
 
-      end;//for TheCounter := 0 to TheCount do
+      end; //for TheCounter := 0 to TheCount do
       if CanDoPrepare then
         TheQ.Prepare;
     end; // if TheQ.Params.Count > 0 then
     if DebugLog then
       TheQ.SQL.SaveToFile(MakeFileName(DLLPath, QueryName + '.log'));
-  end;//procedure FillParams(var TheQ: TUniQuery; PositionList, TheParams: TStrings);
+  end; //procedure FillParams(var TheQ: TUniQuery; PositionList, TheParams: TStrings);
 
 begin
-  IniFile := TIniFile.Create(MakeFileName(AppDir, 'dbfunctions.ini'));
+  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
   TheQuery := TStringList.Create;
   InputsList := TStringList.Create;
   OutputList := TStringList.Create;
@@ -449,16 +458,39 @@ begin
 end;
 
 function TDataModuleMySQL.LoadObjects(TheParams: string): AnsiString;
+var
+  IniFile: TIniFile;
+  TheQuery: TStringList;
+  QueryText: string;
+  I: integer;
 begin
+  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
+  TheQuery := TStringList.Create;
   try
-    mySQLQueryObjects.Open;
-    mySQLQueryObjects.Last;
-    mySQLQueryObjects.First;
-    Result := AnsiString('["PASS",' + IntToStr(mySQLQueryObjects.RecordCount) + ']');
-    mySQLQueryObjects.First;
-  except
-    on E: exception do
-      Result := AnsiString('["ERROR","' + E.Message + '"]');
+    try
+      QueryText := 'Load';
+      I := 0;
+      while QueryText <> EmptyStr do
+      begin
+        Inc(I);
+        QueryText := IniFile.ReadString('getObjectData', 'SQL1_' + IntToStr(I), EmptyStr);
+        TheQuery.Add(trim(QueryText));
+      end; // while QueryText <> EmptyStr do
+      if mySQLQueryObjects.Active then
+        mySQLQueryObjects.Close;
+      mySQLQueryObjects.SQL.Assign(TheQuery);
+      mySQLQueryObjects.Open;
+      mySQLQueryObjects.Last;
+      mySQLQueryObjects.First;
+      Result := AnsiString('["PASS",' + IntToStr(mySQLQueryObjects.RecordCount) + ']');
+      mySQLQueryObjects.First;
+    except
+      on E: exception do
+        Result := AnsiString('["ERROR","' + E.Message + '"]');
+    end;
+  finally
+    FreeAndNil(TheQuery);
+    FreeAndNil(IniFile);
   end;
   if DebugLog then
     LogIt('function TDataModuleMySQL.LoadObjects(TheParams: string = ' + TheParams + '): string; = ' + string(Result));
@@ -510,10 +542,14 @@ end;
 function TDataModuleMySQL.CreateObjects(TheParams: TStrings): AnsiString;
 const
   Template =
-    '_myArray = ["OBJ","%ObjectID%","%ClassName%","%CharacterID%",%Worldspace%,%Inventory%,%Hitpoints%,%Fuel%,%Damage%,%StorageCoins%,"%objectname%","%owneruid%",%accesslist%];_objArray set [count _objArray, _myArray];';
+    '_myArray = ["OBJ","%ObjectID%","%ClassName%","%CharacterID%",%Worldspace%,%Inventory%,%Hitpoints%,%Fuel%,%Damage%,%StorageCoins%,"%objectname%","%owneruid%"];_objArray set [count _objArray, _myArray];';
 var
   ModulePath, ThePath, TmpString: string;
   CreateTemplate, TmpStringList: TStringList;
+  IniFile: TIniFile;
+  ObjTemplate: string;
+  FieldNameList: TStringList;
+  FieldCounter: integer;
   procedure Cleanup;
   var
     FileList: TStringList;
@@ -533,16 +569,45 @@ var
     end;
   end;
 
+  function ExtractObjFields(const S: string): string;
+  const
+    StartTag = '_myArray = ["OBJ",';
+    EndTag = '];';
+  var
+    P, Q: Integer;
+  begin
+    Result := '';
+    P := Pos(StartTag, S);
+    if P = 0 then
+      Exit;
+    Inc(P, Length(StartTag)); // first char after the anchor
+    Q := PosEx(EndTag, S, P); // first '];' at or after that point
+    if Q = 0 then
+      Exit;
+    Result := Copy(S, P, Q - P);
+  end;
+
 begin
   TmpStringList := TStringList.Create;
   CreateTemplate := TStringList.Create;
+  FieldNameList := TStringList.Create;
+  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
   try
+    ObjTemplate := IniFile.ReadString('Default', 'Create Objects', Template);
+    TmpString := ExtractObjFields(ObjTemplate);
+    TmpString := StringReplace(TmpString, '%', EmptyStr, [rfReplaceAll]);
+    TmpString := StringReplace(TmpString, '"', EmptyStr, [rfReplaceAll]);
+    FieldNameList.CommaText := TmpString;
+
     // in order to get this thing to get the correct folder to put the output of objects
     // from the database you need to extractfilepath from module name, then
     // extractfilepath again, but the trailing backslash needs to be removed beforehand
     // otherwise it just returns the original file path (module directory)
     // thepath should equal the root arma install directory
     ThePath := ExcludeTrailingPathDelimiter(ExtractFilePath(ExcludeTrailingPathDelimiter(ExtractFilePath(DLLFullPath))));
+    if not DirectoryExists(MakeFileName(ThePath, '\objspawn')) then
+      ForceDirectories(MakeFileName(ThePath, '\objspawn'));
+
     ModulePath := ExcludeTrailingPathDelimiter(ExtractFilePath(DLLFullPath));
     CreateTemplate.LoadFromFile(MakeFileName(ModulePath, 'template.sqf'));
     Cleanup;
@@ -555,19 +620,10 @@ begin
         begin
           while not EOF do
           begin
-            TmpString := Template;
-            TmpString := StringReplace(TmpString, '%ObjectID%', FieldByName('ObjectID').asString, []);
-            TmpString := StringReplace(TmpString, '%ClassName%', FieldByName('ClassName').asString, []);
-            TmpString := StringReplace(TmpString, '%CharacterID%', FieldByName('CharacterID').asString, []);
-            TmpString := StringReplace(TmpString, '%Worldspace%', FieldByName('Worldspace').asString, []);
-            TmpString := StringReplace(TmpString, '%Inventory%', FieldByName('Inventory').asString, []);
-            TmpString := StringReplace(TmpString, '%Hitpoints%', FieldByName('Hitpoints').asString, []);
-            TmpString := StringReplace(TmpString, '%Fuel%', FieldByName('Fuel').asString, []);
-            TmpString := StringReplace(TmpString, '%Damage%', FieldByName('Damage').asString, []);
-            TmpString := StringReplace(TmpString, '%StorageCoins%', FieldByName('StorageCoins').asString, []);
-            TmpString := StringReplace(TmpString, '%objectname%', FieldByName('objectname').asString, []);
-            TmpString := StringReplace(TmpString, '%owneruid%', FieldByName('owneruid').asString, []);
-            TmpString := StringReplace(TmpString, '%accesslist%', FieldByName('accesslist').asString, []);
+            TmpString := ObjTemplate;
+            for FieldCounter := 0 to FieldNameList.Count - 1 do
+              TmpString := StringReplace(TmpString, '%' + FieldNameList[FieldCounter] + '%', FieldByName(FieldNameList[FieldCounter]).asString,
+                [rfReplaceAll, rfIgnoreCase]);
             TmpStringList.Add(TmpString);
             Next;
           end; // while not EOF do
@@ -578,8 +634,6 @@ begin
           Result := AnsiString('["ERROR",0]');
       end; // with mySQLQueryObjects, mySQLQueryObjects.SQL do
       TmpStringList.Add('decayed_bases = [];');
-      if not DirectoryExists(MakeFileName(ThePath, '\objspawn')) then
-        ForceDirectories(MakeFileName(ThePath, '\objspawn'));
       TmpStringList.SaveToFile(MakeFileName(ThePath, '\objspawn\object' + TheParams[0] + '.sqf'));
     except
       on E: exception do
@@ -588,6 +642,8 @@ begin
   finally
     FreeAndNil(TmpStringList);
     FreeAndNil(CreateTemplate);
+    FreeAndNil(FieldNameList);
+    FreeAndNil(IniFile);
     if mySQLQuery.Active then
       mySQLQuery.Close;
   end;
@@ -595,17 +651,23 @@ begin
     LogIt('function TDataModuleMySQL.CreateObjects(TheParams: string = ' + TheParams.Text + '): string; = ' + string(Result));
 end;
 
+//this appears to not be used anymore, i beileve i just call update using the query maintainObjectListObjectData
+//from arma now instead of doing this, then inserting into maintained_objects from the sqf, that is much easier
+//than trying to do this mess anymore
+(*
 function TDataModuleMySQL.MaintainArea(TheParams: TStrings): AnsiString;
 var
   TheFieldName: string;
   TheList: TStringList;
   PlayerInfo, MapGrid, TmpString: string;
+  MaintainLog: boolean;
   PlotID: Integer;
   TQ: TUniQuery;
 begin
   Result := '[';
   TheList := TStringList.Create;
   TQ := TUniQuery.Create(nil);
+  MaintainLog := False;
   try
     try
       if TheParams[0] = 'ID' then
@@ -645,19 +707,32 @@ begin
         Add('and characterid = 0 and classname like ''%plastic%''');
         ExecSQL;
         Close;
+        //check to see if we log maintenance by existence of logging table
         Clear;
-        Add('REPLACE INTO maintained_objects');
-        Add('(objectid, plotid, maintainedby, worldspace, mapgrid, maintaineddate)');
-        Add('SELECT objectid, :plotid, :playerinfo, worldspace, :mapgrid,CURRENT_TIMESTAMP');
-        Add('FROM object_data');
-        Add('where ' + TheFieldName + ' in (');
-        Add(TheList.CommaText);
-        Add(')');
-        ParamByName('playerinfo').asString := PlayerInfo;
-        ParamByName('mapgrid').asString := MapGrid;
-        ParamByName('plotid').asInteger := PlotID;
-        Prepare;
-        ExecSQL;
+        Add('SELECT EXISTS (');
+        Add('  SELECT true as table_exists FROM information_schema.TABLES');
+        Add('  WHERE TABLE_SCHEMA = DATABASE()');
+        Add('    AND TABLE_NAME = ' + quotedStr('maintained_objects'));
+        Add(') AS table_exists');
+        Open;
+        MaintainLog := FieldByName('table_exists').asBoolean;
+        Close;
+        if MaintainLog then
+        begin
+          Clear;
+          Add('REPLACE INTO maintained_objects');
+          Add('(objectid, plotid, maintainedby, worldspace, mapgrid, maintaineddate)');
+          Add('SELECT objectid, :plotid, :playerinfo, worldspace, :mapgrid,CURRENT_TIMESTAMP');
+          Add('FROM object_data');
+          Add('where ' + TheFieldName + ' in (');
+          Add(TheList.CommaText);
+          Add(')');
+          ParamByName('playerinfo').asString := PlayerInfo;
+          ParamByName('mapgrid').asString := MapGrid;
+          ParamByName('plotid').asInteger := PlotID;
+          Prepare;
+          ExecSQL;
+        end; //if MaintainLog then
       end; // with TQ, TQ.SQL do
     except
       on E: exception do
@@ -673,6 +748,7 @@ begin
   if DebugLog then
     LogIt('function TDataModuleMySQL.MaintainArea(TheParams: TStrings = ' + TheParams.CommaText + '): string; = ' + string(Result));
 end;
+//*)
 
 end.
 
