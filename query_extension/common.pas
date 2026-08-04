@@ -41,7 +41,7 @@ function HiveCallExtension(const Request: AnsiString; OutputSize: Integer): Ansi
 
 implementation
 
-uses dmhive, dmmysql;
+uses dmhive, dmcustom;
 
 function ExcludeTrailingPathDelimiter(TheString: string): string;
 begin
@@ -125,9 +125,12 @@ begin
       Rest := Trim(Copy(Arg, Length(Starter) + 1, MaxInt));
       if Rest <> '' then
         Folder := Rest;
-    end;
+    end;//for I := 1 to ParamCount do
+
+    //fallback to location of dll if -profiles not specified (mainly when testing dll)
     if trim(folder) = emptystr then
       folder := DLLPath;
+
     // resolve against the current directory, like Poco::Path::resolve
     Result := ExpandFileName(IncludeTrailingPathDelimiter(Folder));
     Result := IncludeTrailingPathDelimiter(Result);
@@ -338,7 +341,7 @@ initialization
   { Owned here, by the unit that declares it. Created before any code can run,
     so there is no lazy-create race and no ordering assumption about who logs
     first. Previously it was created on the first RVExtension call and freed by
-    two different datamodules - dmmysql.DeInitializeDLL freed it on a plain
+    two different datamodules - dmcustom.DeInitializeDLL freed it on a plain
     "deinitialize:" while the hive worker thread was still logging through it. }
   LogCriticalSection := TCriticalSection.Create;
 

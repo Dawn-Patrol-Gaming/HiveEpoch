@@ -18,7 +18,7 @@ uses
   uHiveDb in 'uHiveDb.pas',
   uHiveCustomData in 'uHiveCustomData.pas',
   dmhive in 'dmhive.pas' {DataModuleHive: TDataModule},
-  dmmysql in 'dmmysql.pas' {DataModuleMySQL: TDataModule},
+  dmcustom in 'dmcustom.pas' {DataModuleMySQL: TDataModule},
   common in 'common.pas';
 
 {$R *.res}

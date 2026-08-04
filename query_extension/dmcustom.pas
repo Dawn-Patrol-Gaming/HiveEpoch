@@ -1,4 +1,4 @@
-unit dmmysql;
+unit dmcustom;
 
 interface
 
@@ -288,7 +288,7 @@ var
   end; //procedure FillParams(var TheQ: TUniQuery; PositionList, TheParams: TStrings);
 
 begin
-  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
+  IniFile := TIniFile.Create(MakeFileName(GetConfigDir, 'dbfunctions.ini'));
   TheQuery := TStringList.Create;
   InputsList := TStringList.Create;
   OutputList := TStringList.Create;
@@ -469,7 +469,7 @@ var
   QueryText: string;
   I: integer;
 begin
-  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
+  IniFile := TIniFile.Create(MakeFileName(GetConfigDir, 'dbfunctions.ini'));
   TheQuery := TStringList.Create;
   try
     try
@@ -596,7 +596,7 @@ begin
   TmpStringList := TStringList.Create;
   CreateTemplate := TStringList.Create;
   FieldNameList := TStringList.Create;
-  IniFile := TIniFile.Create(MakeFileName(DLLPath, 'dbfunctions.ini'));
+  IniFile := TIniFile.Create(MakeFileName(GetConfigDir, 'dbfunctions.ini'));
   try
     ObjTemplate := IniFile.ReadString('Default', 'Create Objects', Template);
     TmpString := ExtractObjFields(ObjTemplate);
