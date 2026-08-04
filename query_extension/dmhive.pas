@@ -19,14 +19,13 @@ interface
 
 uses
   Windows, SysUtils, Classes, DateUtils, Math, Generics.Collections, System.Hash, System.IOUtils, DB, Uni, IniFiles,
-  uSqfValue, uHiveLog, uHiveDb, uHiveCustomData;
+  uSqfValue, uHiveDb, uHiveCustomData;
 
 type
   TDataModuleHive = class(TDataModule)
     procedure DataModuleCreate(Sender: TObject);
     procedure DataModuleDestroy(Sender: TObject);
   private
-    FLog: THiveLogger;
     {
       FDb is the character database. FObjDb is the same object unless [ObjectDB] Use = true,
       which puts the object table on its own server - the split the C++ makes between _charDb and _objDb.
@@ -124,7 +123,6 @@ type
     }
     function DbAbandoned: boolean;
 
-    property Log: THiveLogger read FLog;
     property Config: TInifile read FHiveIniFile;
     property Db: THiveDatabase read FDb;
     property InitKey: AnsiString read FInitKey;
@@ -284,9 +282,10 @@ begin
   LogLevel := ParseHiveLogLevel(FHiveIniFile.ReadString('Logger', 'Level', 'information'), hlInformation);
   LogFileName := AppDir + FHiveIniFile.ReadString('Logger', 'Filename', DLLName + '.log');
 
-  FLog := THiveLogger.Create(LogFileName, LogLevel);
+  HiveLogName := LogFileName;
+  HiveLogLevel := LogLevel;
 
-  FLog.Information('HiveExt', 'Initializing - DLL Location: ' + ExtractFilePath(DLLFullPath) +
+  HiveLog(hlInformation, 'HiveExt', 'Initializing - DLL Location: ' + ExtractFilePath(DLLFullPath) +
     ', Config Dir: ' + GetConfigDir +
     ', DLL Name: ' + ExtractFileName(DLLFullPath) +
     ', DLL Version: ' + DLLVersion +
@@ -313,7 +312,7 @@ begin
   FIdField := FHiveIniFile.ReadString('Characters', 'IDField', 'PlayerUID');
   FWsField := FHiveIniFile.ReadString('Characters', 'WSField', 'Worldspace');
 
-  FDb := THiveDatabase.Create(FLog);
+  FDb := THiveDatabase.Create;
 
   DBHost := FHiveIniFile.ReadString('Database', 'Host', 'localhost');
   DBName := FHiveIniFile.ReadString('Database', 'Database', '');
@@ -321,7 +320,7 @@ begin
   DBPass := FHiveIniFile.ReadString('Database', 'Password', '');
   DBPort := FHiveIniFile.ReadInteger('Database', 'Port', 3306);
 
-  FLog.Information('HiveExt', 'Database connection information: ' +
+  HiveLog(hlInformation, 'HiveExt', 'Database connection information: ' +
     'Host: ' + DBHost + ',' +
     'Database: ' + DBName + ',' +
     'User: ' + DBUser + ',' +
@@ -337,7 +336,7 @@ begin
   FOwnObjDb := ReadIniBool(FHiveIniFile.ReadString('ObjectDB', 'Use', 'False'), False);
   if FOwnObjDb then
   begin
-    FObjDb := THiveDatabase.Create(FLog);
+    FObjDb := THiveDatabase.Create;
 
     ObjDBHost := FHiveIniFile.ReadString('ObjectDB', 'Host', 'localhost');
     ObjDBName := FHiveIniFile.ReadString('ObjectDB', 'Database', '');
@@ -345,7 +344,7 @@ begin
     ObjDBPass := FHiveIniFile.ReadString('ObjectDB', 'Password', '');
     ObjDBPort := FHiveIniFile.ReadInteger('ObjectDB', 'Port', 3306);
 
-    FLog.Information('HiveExt', 'Object Database connection information: ' +
+    HiveLog(hlInformation, 'HiveExt', 'Object Database connection information: ' +
       'Host: ' + ObjDBHost + ',' +
       'Database: ' + ObjDBName + ',' +
       'User: ' + ObjDBUser + ',' +
@@ -372,24 +371,24 @@ procedure TDataModuleHive.LogEffectiveConfig;
   procedure DebugLog(const Section, Key, Value: string);
   begin
     if FHiveIniFile.ValueExists(Section, Key) then
-      FLog.Debug(LoggerName, Format('  config %s.%s = %s', [Section, Key, Value]))
+      HiveLog(hlDebug, LoggerName, Format('  config %s.%s = %s', [Section, Key, Value]))
     else
-      FLog.Debug(LoggerName, Format('  config %s.%s = %s   (default, not in ini)',
+      HiveLog(hlDebug, LoggerName, Format('  config %s.%s = %s   (default, not in ini)',
         [Section, Key, Value]));
   end; //procedure DebugLog(const Section, Key, Value: string);
 
 begin
-  if not FLog.Accepts(hlDebug) then
+  if not LogAccepts(hlDebug) then
     Exit;
 
-  FLog.Debug(LoggerName, 'effective configuration:');
+  HiveLog(hlDebug, LoggerName, 'effective configuration:');
   DebugLog('Database', 'Host', FHiveIniFile.ReadString('Database', 'Host', 'localhost'));
   DebugLog('Database', 'Port', IntToStr(FHiveIniFile.ReadInteger('Database', 'Port', 3306)));
   DebugLog('Database', 'Database', FHiveIniFile.ReadString('Database', 'Database', ''));
   DebugLog('Database', 'Username', FHiveIniFile.ReadString('Database', 'Username', ''));
 
   // never the password, only whether one was supplied
-  FLog.Debug(LoggerName, Format('  config Database.Password = %s', [IfThenStr(FHiveIniFile.ReadString('Database', 'Password', '') <> '', '<set>',
+  HiveLog(hlDebug, LoggerName, Format('  config Database.Password = %s', [IfThenStr(FHiveIniFile.ReadString('Database', 'Password', '') <> '', '<set>',
         '<empty>')]));
 
   DebugLog('ObjectDB', 'Use', BoolToStr(FOwnObjDb, True));
@@ -415,17 +414,17 @@ begin
   DebugLog('Time', 'Hour', FHiveIniFile.ReadString('Time', 'Hour', '<unset>'));
   DebugLog('Time', 'Offset', FHiveIniFile.ReadString('Time', 'Offset', '<unset>'));
   DebugLog('Time', 'Date', FHiveIniFile.ReadString('Time', 'Date', '<unset>'));
-  FLog.Debug(LoggerName, Format('  clock offset from UTC = %s',
+  HiveLog(hlDebug, LoggerName, Format('  clock offset from UTC = %s',
     [FormatDateTime('hh:nn:ss', Abs(FTimeOffset))]));
 
-  DebugLog('Logger', 'Level', HiveLogLevelName(FLog.Level));
+  DebugLog('Logger', 'Level', HiveLogLevelName(HiveLogLevel));
   DebugLog('Battleye', 'ScriptsLogLine', FHiveIniFile.ReadString('Battleye', 'ScriptsLogLine', 'DISABLED'));
   DebugLog('Battleye', 'ScriptsLogPath', FHiveIniFile.ReadString('Battleye', 'ScriptsLogPath', 'DISABLED'));
   DebugLog('Battleye', 'BansPath', FHiveIniFile.ReadString('Battleye', 'BansPath', 'DISABLED'));
 
   // the [Garage] section is dead config - flag it, because people will use it
   if FHiveIniFile.ValueExists('Garage', 'Table') or FHiveIniFile.ValueExists('Garage', 'CleanupVehStoredDays') then
-    FLog.Warning(LoggerName, 'ini has a [Garage] section, which HiveExt ignores - ' +
+    HiveLog(hlWarning, LoggerName, 'ini has a [Garage] section, which HiveExt ignores - ' +
       'VGTable and CleanupVehStoredDays are read from [Objects]');
 end;
 
@@ -491,10 +490,10 @@ begin
         if (D > 0) and (Mo > 0) and (Y > 0) then
           Nw := EncodeDate(Y, Mo, D) + Frac(Nw)
         else
-          FLog.Warning(LoggerName, 'Invalid value for Time.Date configuration variable (expected date, given: ' + DateStr + ')');
+          HiveLog(hlWarning, LoggerName, 'Invalid value for Time.Date configuration variable (expected date, given: ' + DateStr + ')');
       end //if Length(Parts) = 3 then
       else
-        FLog.Warning(LoggerName, 'Invalid value for Time.Date configuration variable (expected date, given: ' + DateStr + ')');
+        HiveLog(hlWarning, LoggerName, 'Invalid value for Time.Date configuration variable (expected date, given: ' + DateStr + ')');
     end; //if DateStr <> '' then
 
   end //else if TimeType = 'static' then
@@ -534,9 +533,9 @@ begin
 
   if N > 0 then
   begin
-    FLog.Information(LoggerName, Format('Updating %d Object_Data ObjectUID', [N]));
+    HiveLog(hlInformation, LoggerName, Format('Updating %d Object_Data ObjectUID', [N]));
     if not FObjDb.DirectExecute('UPDATE ' + FObjTable + ' SET ObjectUID = (ObjectID + 1) ' + Common, []) then
-      FLog.Error(LoggerName, 'Error executing update ObjectUID statement');
+      HiveLog(hlError, LoggerName, 'Error executing update ObjectUID statement');
   end; //if N > 0 then
 
   //placed object cleanup
@@ -557,7 +556,7 @@ begin
     end; //try..finally
     if N > 0 then
     begin
-      FLog.Notice(LoggerName, Format('Removing %d placed objects older than %d days', [N, FCleanupPlacedDays]));
+      HiveLog(hlNotice, LoggerName, Format('Removing %d placed objects older than %d days', [N, FCleanupPlacedDays]));
 
       if FLogObjCleanup then
       begin
@@ -566,7 +565,7 @@ begin
         try
           while (Q <> nil) and not Q.EOF do
           begin
-            FLog.Notice(LoggerName, Format(
+            HiveLog(hlNotice, LoggerName, Format(
               'OBJ CLEANUP DELETE. Classname: %s with inventory:%s Object UID: %s Character ID: %s Storage Coins: %s At Worldspace: %s',
               [Q.Fields[2].AsString, Q.Fields[1].AsString, Q.Fields[0].AsString, Q.Fields[3].AsString, Q.Fields[5].AsString, Q.Fields[4].AsString]));
             Q.Next;
@@ -577,7 +576,7 @@ begin
 
       end; //if FLogObjCleanup then
       if not FObjDb.DirectExecute('DELETE ' + Common, []) then
-        FLog.Error(LoggerName, 'Error executing placed objects cleanup statement');
+        HiveLog(hlError, LoggerName, 'Error executing placed objects cleanup statement');
     end; //if N > 0 then
   end; //if FCleanupPlacedDays >= 0 then
 
@@ -597,9 +596,9 @@ begin
 
     if N > 0 then
     begin
-      FLog.Notice(LoggerName, Format('Removing %d virtual garage vehicles stored for %d days', [N, FCleanupStoredDays]));
+      HiveLog(hlNotice, LoggerName, Format('Removing %d virtual garage vehicles stored for %d days', [N, FCleanupStoredDays]));
       if not FObjDb.DirectExecute('DELETE ' + Common, []) then
-        FLog.Error(LoggerName, 'Error executing placed objects cleanup statement');
+        HiveLog(hlError, LoggerName, 'Error executing placed objects cleanup statement');
     end; //if N > 0 then
   end; //if FCleanupStoredDays >= 0 then
 end;
@@ -622,7 +621,7 @@ begin
     [FObjTable, FServerId]), []);
   if Q = nil then
   begin
-    FLog.Error(LoggerName, 'Failed to fetch objects from database');
+    HiveLog(hlError, LoggerName, 'Failed to fetch objects from database');
     Exit;
   end; //if Q = nil then
 
@@ -642,7 +641,7 @@ begin
         WS := SqfParseValue(AnsiString(Q.Fields[3].AsString));
         if WS = nil then
         begin
-          FLog.Error(LoggerName, Format('Skipping ObjectID %d load because of invalid data in db', [ObjectId]));
+          HiveLog(hlError, LoggerName, Format('Skipping ObjectID %d load because of invalid data in db', [ObjectId]));
           FreeAndNil(Row);
           Q.Next;
           Continue;
@@ -650,7 +649,7 @@ begin
 
         if FVehicleOOBReset and (CharId = 0) then
           if FixOOBWorldspace(WS) then
-            FLog.Information(LoggerName, Format('Reset ObjectID %d (%s) from position', [ObjectId, Q.Fields[1].AsString]));
+            HiveLog(hlInformation, LoggerName, Format('Reset ObjectID %d (%s) from position', [ObjectId, Q.Fields[1].AsString]));
         Row.Add(WS);
 
         if Q.Fields[4].IsNull then
@@ -707,8 +706,8 @@ var
 begin
   LegacyStream := P[1].AsBoolAny;
 
-  if FLog.Accepts(hlDebug) then
-    FLog.Debug(LoggerName, Format(
+  if LogAccepts(hlDebug) then
+    HiveLog(hlDebug, LoggerName, Format(
       '302: legacy=%s queued=%d initKey=%s -> %s',
       [BoolToStr(LegacyStream, True), StreamCount,
         IfThenStr(Length(FInitKey) > 0, 'set', 'unset'),
@@ -773,7 +772,7 @@ begin
   finally
     Dump.Free;
   end; //try..finally
-  FLog.Information(LoggerName, Format('Loaded %d objects from the SQL database', [FStream.Count]));
+  HiveLog(hlInformation, LoggerName, Format('Loaded %d objects from the SQL database', [FStream.Count]));
   ClearStream;
   Result := TSqfValue.CreateStr(AnsiString(FileName));
 end;
@@ -786,7 +785,7 @@ begin
   TheirKey := P[0].AsStringAny;
   if (Length(FInitKey) > 0) and (TheirKey = FInitKey) then
   begin
-    FLog.Information(LoggerName, 'Shutting down HiveExt instance');
+    HiveLog(hlInformation, LoggerName, 'Shutting down HiveExt instance');
     //orig hive: returns the value and then throws, so RVExtension writes the result before ExtStartup::ProcessShutdown tears the app down
     //It does not kill the process - the next call just re-creates everything, flag it and let the caller do the teardown after the
     //result is written.
@@ -837,17 +836,12 @@ begin
   FOwnObjDb := False;
   Release(FDb);
 
-  // an abandoned worker still logs, so its logger has to outlive us too
-  if not FDbAbandoned then
-  begin
-    FreeAndNil(FLog);
-    FreeAndNil(FHiveIniFile);
-  end //if not FDbAbandoned then
-  else
-  begin
-    FLog := nil;
-    FHiveIniFile := nil;
-  end; //if..then..else if not FDbAbandoned then
+  {
+    Nothing to do for the logger any more. It is global functions in common, so
+    an abandoned worker can keep logging with nothing left to outlive it - this
+    used to need a branch keeping FLog alive when the worker would not stop.
+  }
+  FreeAndNil(FHiveIniFile);
 end;
 
 //object data source
@@ -1390,7 +1384,7 @@ begin
 
   if not FileExists(LogFile) then
   begin
-    FLog.Error(LoggerName, 'Failed to open scripts.log file!');
+    HiveLog(hlError, LoggerName, 'Failed to open scripts.log file!');
     Exit(BoolStatus(Match));
   end; //if not FileExists(LogFile) then
 
@@ -1403,7 +1397,7 @@ begin
     except
       on E: Exception do
       begin
-        FLog.Error(LoggerName, 'Failed to open scripts.log file!');
+        HiveLog(hlError, LoggerName, 'Failed to open scripts.log file!');
         Exit(BoolStatus(True));
       end; //on E: Exception do
     end; //try..except
@@ -1413,7 +1407,7 @@ begin
       CheckLine := Lines[I];
       if pos(StringScan, CheckLine) = 0 then
       begin
-        FLog.Notice(LoggerName, 'Scanned scripts.log line does not match provided ' +
+        HiveLog(hlNotice, LoggerName, 'Scanned scripts.log line does not match provided ' +
           '''ScriptsLogLine'' HiveExt.ini variable definition: ' + StringScan +
           'for player with GUID: ' + BEGuid);
         Continue;
@@ -1437,13 +1431,13 @@ begin
       if (DMinutes = 0) and ((DHours < TimeTolerance) or ((DHours = TimeTolerance) and (DSeconds < 5))) then
       begin
         Match := True;
-        FLog.Notice(LoggerName, Format('Successfully found player in scripts.log,  within ' +
+        HiveLog(hlNotice, LoggerName, Format('Successfully found player in scripts.log,  within ' +
           '%d minutes of %s with log text: ''%s''',
           [TimeTolerance, FormatDateTime(' hh:nn:ss', TimeNow), CheckLine]));
         Break;
       end //if (DMinutes = 0) and ((DHours < TimeTolerance) or ((DHours = TimeTolerance) and (DSeconds < 5))) then
       else
-        FLog.Notice(LoggerName, Format('Date time not within %d minutes of %s -- compared ' +
+        HiveLog(hlNotice, LoggerName, Format('Date time not within %d minutes of %s -- compared ' +
           'to string: %s', [TimeTolerance, FormatDateTime(' hh:nn:ss', TimeNow), CheckLine]));
     end; //for I := Lines.Count - 1 downto 0 do
 
@@ -1529,7 +1523,7 @@ begin
   try
     if (Q = nil) or Q.EOF then
     begin
-      FLog.Error(LoggerName, Format('ERROR spawning virtual garage vehicle. worldspace = %s ' +
+      HiveLog(hlError, LoggerName, Format('ERROR spawning virtual garage vehicle. worldspace = %s ' +
         'VehID = %d uniqueID = %d', [string(WorldSpace.ToSqf), VehID, UniqueId]));
       Exit(StatusValue('ERROR'));
     end; //if (Q = nil) or Q.EOF then
@@ -1569,7 +1563,7 @@ begin
       FObjDb.Execute(Format('DELETE FROM `%s` WHERE `ID` = :p0', [FGarageTable]), [VehID])
     else
     begin
-      FLog.Error(LoggerName, 'Failed to create object when removing from virtual garage, ' +
+      HiveLog(hlError, LoggerName, 'Failed to create object when removing from virtual garage, ' +
         'DB will not delete the requested object (as it shouldn''t spawn anyway)');
       FreeAndNil(Result);
       Result := StatusValue('ERROR');
@@ -1606,7 +1600,7 @@ begin
     Exit(BoolStatus(False)); // the count query failed; exRes stays false
   if Existing >= 1 then
   begin
-    FLog.Error(LoggerName, Format('Duplicate object NOT stored in virtual garage. storage ' +
+    HiveLog(hlError, LoggerName, Format('Duplicate object NOT stored in virtual garage. storage ' +
       'attempt by player with UID: %s ObjectID: %s VG_ServerKey: %s',
       [P[0].AsStringAny, P[12].AsStringAny, P[11].AsStringAny]));
     Exit(BoolStatus(False));
@@ -1752,7 +1746,7 @@ begin
         begin
           FDb.Execute(Format('UPDATE `Player_DATA` SET `PlayerName`=:p0 WHERE `%s`=:p1',
             [FIdField]), [string(PlayerName), string(PlayerId)]);
-          FLog.Notice(LoggerName, Format('Changed name of player %s from ''%s'' to ''%s''',
+          HiveLog(hlNotice, LoggerName, Format('Changed name of player %s from ''%s'' to ''%s''',
             [PlayerId, Q.Fields[0].AsString, PlayerName]));
         end; //if AnsiString(Q.Fields[0].AsString) <> PlayerName then
         PlayerGroup := ParseOrDefault(AnsiString(Q.Fields[2].AsString), '[]');
@@ -1766,7 +1760,7 @@ begin
         FDb.Execute(Format('INSERT INTO `Player_DATA` (`%s`, `PlayerName`, playerGroup) ' +
           'VALUES (:p0, :p1, :p2)', [FIdField]),
           [string(PlayerId), string(PlayerName), string(PlayerGroup.ToSqf)]);
-        FLog.Information(LoggerName, Format('Created a new player %s named ''%s''',
+        HiveLog(hlInformation, LoggerName, Format('Created a new player %s named ''%s''',
           [PlayerId, PlayerName]));
       end; //if..then..else if (Q <> nil) and not Q.EOF then
     finally
@@ -1846,7 +1840,7 @@ begin
         'CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :p7)', [FIdField, FWsField]),
         [string(PlayerId), FServerId, '[]', '[]', '[]', '[]', Generation, Humanity]) then
       begin
-        FLog.Error(LoggerName, 'Error creating character for playerId ' + string(PlayerId));
+        HiveLog(hlError, LoggerName, 'Error creating character for playerId ' + string(PlayerId));
         Exit(StatusValue('ERROR'));
       end; //if not FDb.DirectExecute
 
@@ -1855,18 +1849,18 @@ begin
       try
         if (Q = nil) or Q.EOF then
         begin
-          FLog.Error(LoggerName, 'Error fetching created character for playerId ' + string(PlayerId));
+          HiveLog(hlError, LoggerName, 'Error fetching created character for playerId ' + string(PlayerId));
           Exit(StatusValue('ERROR'));
         end; //if (Q = nil) or Q.EOF then
         CharacterId := Q.Fields[0].AsLargeInt;
       finally
         Q.Free;
       end; //try..finally
-      FLog.Information(LoggerName, Format('Created a new character %d for player ''%s'' (%s)', [CharacterId, PlayerName, PlayerId]));
+      HiveLog(hlInformation, LoggerName, Format('Created a new character %d for player ''%s'' (%s)', [CharacterId, PlayerName, PlayerId]));
     end;
 
-    if FLog.Accepts(hlDebug) then
-      FLog.Debug(LoggerName, Format(
+    if LogAccepts(hlDebug) then
+      HiveLog(hlDebug, LoggerName, Format(
         '101: uid=%s newPlayer=%s newChar=%s charId=%d generation=%d humanity=%d ' +
         'model=%s coins=%d/%d/%d -> %d element reply',
         [PlayerId, BoolToStr(NewPlayer, True), BoolToStr(NewChar, True), CharacterId,
@@ -2031,7 +2025,7 @@ begin
       for I := 0 to P[4].Count - 1 do
         if P[4][I].IsAny then
         begin
-          FLog.Warning(LoggerName, Format('update.medical[%d] changed from any to []', [I]));
+          HiveLog(hlWarning, LoggerName, Format('update.medical[%d] changed from any to []', [I]));
           P[4].ReplaceWithEmptyArray(I);
         end;
       PutParam('Medical', string(P[4].ToSqf));
@@ -2064,8 +2058,8 @@ begin
 
     // which fields survived the "only write what changed" filtering - the
     // usual complaint is that some stat is not persisting
-    if FLog.Accepts(hlDebug) then
-      FLog.Debug(LoggerName, Format('201: charId=%d params=%d fields written: %s',
+    if LogAccepts(hlDebug) then
+      HiveLog(hlDebug, LoggerName, Format('201: charId=%d params=%d fields written: %s',
         [CharacterId, P.Count, IfThenStr(Names.Count = 0, '<none, nothing to update>', StringReplace(Names.CommaText, ',', ', ', [rfReplaceAll]))]));
 
     if Names.Count = 0 then
@@ -2141,18 +2135,18 @@ begin
       [Coins, Bank, PlayerId])
   else if Coins >= 0 then
   begin
-    FLog.Information(LoggerName, 'SQF Failed to pass player bank value, skipping column: `BankCoins` update');
+    HiveLog(hlInformation, LoggerName, 'SQF Failed to pass player bank value, skipping column: `BankCoins` update');
     Ok := FDb.Execute(Format('UPDATE `Player_DATA` SET `PlayerCoins`=:p0 WHERE `%s`=:p1',
       [FIdField]), [Coins, PlayerId]);
   end //else if Coins >= 0 then
   else if Bank >= 0 then
   begin
-    FLog.Information(LoggerName, 'SQF Failed to pass player coins value, skipping column: `PlayerCoins` update');
+    HiveLog(hlInformation, LoggerName, 'SQF Failed to pass player coins value, skipping column: `PlayerCoins` update');
     Ok := FDb.Execute(Format('UPDATE `Player_DATA` SET `BankCoins`=:p0 WHERE `%s`=:p1',
       [FIdField]), [Bank, PlayerId]);
   end //else if Bank >= 0 then
   else
-    FLog.Information(LoggerName, 'SQF Failed to pass both player coins and player bank values skipping update');
+    HiveLog(hlInformation, LoggerName, 'SQF Failed to pass both player coins and player bank values skipping update');
   Result := BoolStatus(Ok);
 end;
 
@@ -2170,20 +2164,20 @@ begin
   try
     if P.Count < 2 then
     begin
-      FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
+      HiveLog(hlError, LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
     end; //if P.Count < 2 then
 
     if (P[0].Kind <> skString) or (P[0].AsStringAny <> 'CHILD') then
     begin
-      FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
+      HiveLog(hlError, LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
     end; //if (P[0].Kind <> skString) or (P[0].AsStringAny <> 'CHILD') then
 
     try
       FuncNum := P[1].AsIntAny;
     except
-      FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
+      HiveLog(hlError, LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
     end; //try..except
 
@@ -2191,9 +2185,9 @@ begin
     P.Delete(0);
     P.Delete(0);
 
-    if FLog.Accepts(hlDebug) then
-      FLog.Debug(LoggerName, 'Original params: |' + string(Request) + '|');
-    FLog.Information(LoggerName, Format('Method: %d Params: %s', [FuncNum, string(P.ToSqf)]));
+    if LogAccepts(hlDebug) then
+      HiveLog(hlDebug, LoggerName, 'Original params: |' + string(Request) + '|');
+    HiveLog(hlInformation, LoggerName, Format('Method: %d Params: %s', [FuncNum, string(P.ToSqf)]));
 
     Res := nil;
     try
@@ -2234,24 +2228,24 @@ begin
           802: Res := HVGStoreVeh(P);
           803: Res := HVGMaintainVeh(P);
         else
-          FLog.Error(LoggerName, 'Invalid method id: ' + IntToStr(FuncNum));
+          HiveLog(hlError, LoggerName, 'Invalid method id: ' + IntToStr(FuncNum));
           Exit;
         end; //case FuncNum of
       except
         on E: Exception do
         begin
-          FLog.Error(LoggerName, 'Error executing |' + string(Request) + '|');
+          HiveLog(hlError, LoggerName, 'Error executing |' + string(Request) + '|');
           Exit;
         end; //on E: Exception do
       end; //try..except
 
       Result := Res.ToSqf;
-      FLog.Information(LoggerName, 'Result: ' + string(Result));
+      HiveLog(hlInformation, LoggerName, 'Result: ' + string(Result));
 
       // too big for Arma's buffer: log and write nothing, never truncate, although I've never seen this actually happen
       if Length(Result) >= OutputSize then
       begin
-        FLog.Error(LoggerName, Format('Output size too big (%d) for request : %s', [Length(Result), string(Request)]));
+        HiveLog(hlError, LoggerName, Format('Output size too big (%d) for request : %s', [Length(Result), string(Request)]));
         Result := '';
       end; //if Length(Result) >= OutputSize then
     finally

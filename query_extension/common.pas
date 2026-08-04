@@ -4,6 +4,20 @@ interface
 
 uses System.Classes, System.DateUtils, System.IOUtils, System.SysUtils, System.UITypes, System.SyncObjs, System.AnsiStrings, Winapi.Windows;
 
+type
+  { orig hive - Poco::Message::Priority, same ordering so comparisons work }
+  THiveLogLevel = (
+    hlNone = 0,
+    hlFatal = 1,
+    hlCritical = 2,
+    hlError = 3,
+    hlWarning = 4,
+    hlNotice = 5,
+    hlInformation = 6,
+    hlDebug = 7,
+    hlTrace = 8
+    );
+
 var
   AppDir: string = '';
   DLLPath: string = '';
@@ -12,6 +26,11 @@ var
   DLLVersion: string = '';
   DebugLog: boolean = false;
   LogCriticalSection: TCriticalSection;
+  { hive-side logging. Globals rather than an object: there is one DLL, one log
+    file and one level, and making it an owned object meant an abandoned worker
+    thread could outlive its own logger. }
+  HiveLogLevel: THiveLogLevel = hlInformation;
+  HiveLogName: string = '';
 
 function CleanString(AValue: string): string;
 function ExcludeTrailingPathDelimiter(TheString: string): string;
@@ -20,6 +39,15 @@ function GetConfigDir: string;
 function GetDLLFullPath: string;
 function GetDLLVersion(const FileName: string): string;
 procedure LogIt(TheMsg: string; TheFile: string = '');
+
+{ hive logging - level filter plus HiveExt's "Source: [Level] Msg" shape, then
+  straight to LogIt. Source is the orig hive Poco logger name, "HiveExt" or
+  "Database". }
+function LogAccepts(Level: THiveLogLevel): Boolean;
+procedure HiveLog(Level: THiveLogLevel; const Source, Msg: string);
+//orig hive - Poco::Logger::parseLevel names. Unknown text falls back to Default.
+function ParseHiveLogLevel(const S: string; Default: THiveLogLevel): THiveLogLevel;
+function HiveLogLevelName(Level: THiveLogLevel): string;
 
 //strictly for hive, in case weird values are in ini files for hive
 function ReadIniBool(AValue: string; Default: Boolean): Boolean;
@@ -203,6 +231,43 @@ begin
   except
     // Swallow any exceptions from logging to avoid raising in exception contexts
   end;
+end;
+
+const
+  LevelNames: array[THiveLogLevel] of string = (
+    'None', 'Fatal', 'Critical', 'Error', 'Warning',
+    'Notice', 'Information', 'Debug', 'Trace');
+
+function ParseHiveLogLevel(const S: string; Default: THiveLogLevel): THiveLogLevel;
+var
+  L: THiveLogLevel;
+  T: string;
+begin
+  T := LowerCase(Trim(S));
+  if T = '' then
+    Exit(Default);
+  for L := Low(THiveLogLevel) to High(THiveLogLevel) do
+    if T = LowerCase(LevelNames[L]) then
+      Exit(L);
+  Result := Default;
+end;
+
+function HiveLogLevelName(Level: THiveLogLevel): string;
+begin
+  Result := LevelNames[Level];
+end;
+
+function LogAccepts(Level: THiveLogLevel): Boolean;
+begin
+  Result := (HiveLogLevel <> hlNone) and (Ord(Level) <= Ord(HiveLogLevel));
+end;
+
+procedure HiveLog(Level: THiveLogLevel; const Source, Msg: string);
+begin
+  if not LogAccepts(Level) then
+    Exit;
+  // LogIt timestamps every line, so no need to prepend one like hive did
+  LogIt(Source + ': [' + LevelNames[Level] + '] ' + Msg, HiveLogName);
 end;
 
 function HiveCallExtension(const Request: AnsiString; OutputSize: Integer): AnsiString;

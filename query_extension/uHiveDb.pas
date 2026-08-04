@@ -27,7 +27,7 @@ interface
 uses
   Windows, SysUtils, Classes, SyncObjs, Generics.Collections, Variants,
   DB, DBAccess, Uni, MemDS, UniProvider, MySQLUniProvider,
-  uHiveLog;
+  common;
 
 type
   EHiveDb = class(Exception);
@@ -60,7 +60,6 @@ type
     FQueue: TQueue<THiveSqlOp>;
     FWake: TEvent;
     FThread: THiveDelayThread;
-    FLog: THiveLogger;
     FAsyncAllowed: Boolean;
     FConnected: Boolean;
     FAbandoned: Boolean;
@@ -69,7 +68,7 @@ type
     procedure DrainQueue;
     function ServerVersion: string;
   public
-    constructor Create(ALog: THiveLogger);
+    constructor Create;
     destructor Destroy; override;
 
     function Initialise(const Host, Database, User, Password: string;
@@ -93,7 +92,6 @@ type
 
     property Connected: Boolean read FConnected;
     property Abandoned: Boolean read FAbandoned;
-    property Log: THiveLogger read FLog;
   end;
 
 implementation
@@ -137,10 +135,9 @@ begin
 end;
 
 //THiveDatabase
-constructor THiveDatabase.Create(ALog: THiveLogger);
+constructor THiveDatabase.Create;
 begin
   inherited Create;
-  FLog := ALog;
   FWriteLock := TCriticalSection.Create;
   FQueueLock := TCriticalSection.Create;
   FQueue := TQueue<THiveSqlOp>.Create;
@@ -189,13 +186,13 @@ begin
     FWriteConn.Connect;
     FConnected := True;
     // HiveExt logs "client ver: X server ver: Y" here. There is no client library in direct mode, so say so rather than inventing a version.
-    FLog.Information('Database', Format('Connected to MySQL database %s:%d/%s client ver: direct server ver: %s',
+    HiveLog(hlInformation, 'Database', Format('Connected to MySQL database %s:%d/%s client ver: direct server ver: %s',
       [Host, Port, Database, ServerVersion]));
     FThread := THiveDelayThread.Create(Self);
     Result := True;
   except
     on E: Exception do
-      FLog.Error('Database', 'Failed to connect: ' + E.Message);
+      HiveLog(hlError, 'Database', 'Failed to connect: ' + E.Message);
   end;
 end;
 
@@ -248,7 +245,7 @@ begin
     try
       if not FWriteLock.TryEnter then
       begin
-        FLog.Error('Database', Format(
+        HiveLog(hlError, 'Database', Format(
           'Write lock still held at shutdown; %d queued statement(s) not flushed',
           [FQueue.Count + 1]));
         Break;
@@ -352,15 +349,15 @@ begin
       BindArgs(Q, Args);
       T0 := GetTickCount;
       Q.ExecSQL;
-      if FLog.Accepts(hlTrace) then
-        FLog.Trace('Database', Format('%s [%d ms] SQL: ''%s%s''', [What, GetTickCount - T0, SQL, BoundValues(Args)]))
-      else if FLog.Accepts(hlDebug) then
+      if LogAccepts(hlTrace) then
+        HiveLog(hlTrace, 'Database', Format('%s [%d ms] SQL: ''%s%s''', [What, GetTickCount - T0, SQL, BoundValues(Args)]))
+      else if LogAccepts(hlDebug) then
         // at Debug the statement text is noise, but its effect is not - this is what answers "my data is not saving"
-        FLog.Debug('Database', Format('%s [%d ms] %d row(s) affected', [What, GetTickCount - T0, Q.RowsAffected]));
+        HiveLog(hlDebug, 'Database', Format('%s [%d ms] %d row(s) affected', [What, GetTickCount - T0, Q.RowsAffected]));
       Result := True;
     except
       on E: Exception do
-        FLog.Error('Database', Format('%s failed: %s SQL: ''%s''',
+        HiveLog(hlError, 'Database', Format('%s failed: %s SQL: ''%s''',
           [What, E.Message, SQL]));
     end;
   finally
@@ -407,14 +404,14 @@ begin
     BindArgs(Result, Args);
     T0 := GetTickCount;
     Result.Open;
-    if FLog.Accepts(hlTrace) then
-      FLog.Trace('Database', Format('Query [%d ms] SQL: ''%s%s''', [GetTickCount - T0, SQL, BoundValues(Args)]))
-    else if FLog.Accepts(hlDebug) then
-      FLog.Debug('Database', Format('Query [%d ms] %d row(s) returned', [GetTickCount - T0, Result.RecordCount]));
+    if LogAccepts(hlTrace) then
+      HiveLog(hlTrace, 'Database', Format('Query [%d ms] SQL: ''%s%s''', [GetTickCount - T0, SQL, BoundValues(Args)]))
+    else if LogAccepts(hlDebug) then
+      HiveLog(hlDebug, 'Database', Format('Query [%d ms] %d row(s) returned', [GetTickCount - T0, Result.RecordCount]));
   except
     on E: Exception do
     begin
-      FLog.Error('Database', Format('Query failed: %s SQL: ''%s''', [E.Message, SQL]));
+      HiveLog(hlError, 'Database', Format('Query failed: %s SQL: ''%s''', [E.Message, SQL]));
       FreeAndNil(Result);
     end;
   end;
@@ -436,8 +433,8 @@ begin
   end;
   FWake.SetEvent;
   // a depth that keeps climbing means the worker is stalled or the DB is slow
-  if (Depth > 1) and FLog.Accepts(hlDebug) then
-    FLog.Debug('Database', Format('write queue depth %d', [Depth]));
+  if (Depth > 1) and LogAccepts(hlDebug) then
+    HiveLog(hlDebug, 'Database', Format('write queue depth %d', [Depth]));
   // HiveExt's execute() reports success on enqueue, not on completion
   Result := True;
 end;

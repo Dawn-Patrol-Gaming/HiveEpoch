@@ -14,7 +14,7 @@ uses
   SysUtils,
   Classes,
   uSQFValue in 'uSQFValue.pas',
-  uHiveLog in 'uHiveLog.pas',
+
   uHiveDb in 'uHiveDb.pas',
   uHiveCustomData in 'uHiveCustomData.pas',
   dmhive in 'dmhive.pas' {DataModuleHive: TDataModule},
