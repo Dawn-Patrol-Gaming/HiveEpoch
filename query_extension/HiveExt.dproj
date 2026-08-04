@@ -75,11 +75,11 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.3;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.4;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
         <Debugger_HostApplication>D:\Projects\DayZ Server Dawn Patrol\DB Functions\Win32\Debug\bin\dlltest.exe</Debugger_HostApplication>
         <DCC_DebugInformation>1</DCC_DebugInformation>
         <DCC_Optimize>false</DCC_Optimize>
-        <VerInfo_Build>3</VerInfo_Build>
+        <VerInfo_Build>4</VerInfo_Build>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_2)'!=''">
         <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -88,7 +88,7 @@
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <Debugger_HostApplication>D:\Projects\DayZ Server Dawn Patrol\DB Functions\Win32\Debug\bin\dlltest.exe</Debugger_HostApplication>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-        <VerInfo_Keys>CompanyName=Dawn Patrol Gaming;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.3;InternalName=;LegalCopyright=2026 Nathan Davalos;LegalTrademarks=;OriginalFilename=dzfunctions.dll;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
+        <VerInfo_Keys>CompanyName=Dawn Patrol Gaming;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.4;InternalName=;LegalCopyright=2026 Nathan Davalos;LegalTrademarks=;OriginalFilename=dzfunctions.dll;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
         <BRCC_Defines>LOGFLUSH</BRCC_Defines>
         <DCC_DebugInformation>2</DCC_DebugInformation>
         <DCC_LocalDebugSymbols>true</DCC_LocalDebugSymbols>
@@ -99,7 +99,7 @@
         <DCC_RemoteDebug>true</DCC_RemoteDebug>
         <DCC_RangeChecking>true</DCC_RangeChecking>
         <DCC_MapFile>3</DCC_MapFile>
-        <VerInfo_Build>3</VerInfo_Build>
+        <VerInfo_Build>4</VerInfo_Build>
     </PropertyGroup>
     <Import Project="D:\Dropbox\Archives\Programming\Delphi 13\default_compiler_option_set.optset" Condition="'$(Base)'!='' And Exists('D:\Dropbox\Archives\Programming\Delphi 13\default_compiler_option_set.optset')"/>
     <ItemGroup>
