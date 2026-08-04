@@ -6,7 +6,7 @@ If you are using template.sqf for custom object loading from the database at ser
 
 dlltest.exe:
 This app allows you to load the dll and test calls from Arma to the dll and see the output.
-This basically is like calling from inside SQF:
+This basically is like calling from inside SQF: 
 _dbcall = "CHILD:302:11:false:";
 _data = "hiveext" callExtension _dbcall;
 
@@ -15,3 +15,5 @@ _dbcall = format["initialize:%1",Debug_DBFunctions];
 _data = "hiveext" callExtension _dbcall;
 
 This will show the response, good for debugging any custom sql you have specified in dbfunctions.ini. You shouldn't need to test any hive calls since they work just the same way as the original HiveExt.dll
+
+When testing with this app, have BOTH hiveext.ini and dbfunctions.ini in the same directory as HiveExt.dll
