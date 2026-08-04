@@ -13,6 +13,7 @@ var
   DebugLog: boolean = false;
   LogCriticalSection: TCriticalSection;
 
+function CleanString(AValue: string): string;
 function ExcludeTrailingPathDelimiter(TheString: string): string;
 function MakeFileName(TheRoot, TheFile: string): string;
 function GetConfigDir: string;
@@ -42,6 +43,19 @@ function HiveCallExtension(const Request: AnsiString; OutputSize: Integer): Ansi
 implementation
 
 uses dmhive, dmcustom;
+
+function CleanString(AValue: string): string;
+var
+  I, AChar: Integer;
+begin
+  Result := AValue;
+  for I := 1 to Length(Result) do
+  begin
+    AChar := Ord(Result[I]);
+    if ((AChar < 32) or (AChar > 126)) and (AChar <> 13) and (AChar <> 10) then
+      Result[I] := '?';
+  end;
+end;
 
 function ExcludeTrailingPathDelimiter(TheString: string): string;
 begin
@@ -125,7 +139,7 @@ begin
       Rest := Trim(Copy(Arg, Length(Starter) + 1, MaxInt));
       if Rest <> '' then
         Folder := Rest;
-    end;//for I := 1 to ParamCount do
+    end; //for I := 1 to ParamCount do
 
     //fallback to location of dll if -profiles not specified (mainly when testing dll)
     if trim(folder) = emptystr then
@@ -173,7 +187,7 @@ begin
           fs := TFileStream.Create(FLogFile, fmCreate);
         end;
         fs.Seek(0, soFromEnd);
-        TheMessage := FormatDateTime('yyyy-mm-dd hh:nn:ssAM/PM', Now) + ' - ' + TheMsg + sLineBreak;
+        TheMessage := FormatDateTime('yyyy-mm-dd hh:nn:ssAM/PM', Now) + ' - ' + CleanString(TheMsg) + sLineBreak;
         // UTF8, not TEncoding.Default. Default is the machine's ANSI codepage,
         // so the same player name or classname produced different bytes on
         // different servers and anything non-ASCII came out mangled. GetBytes
