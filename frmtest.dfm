@@ -43,10 +43,18 @@ object FormTester: TFormTester
       Height = 13
       Caption = 'Parameters:'
     end
+    object SpeedButtonFile: TSpeedButton
+      Left = 656
+      Top = 11
+      Width = 23
+      Height = 22
+      Caption = '...'
+      OnClick = SpeedButtonFileClick
+    end
     object EditExtension: TEdit
       Left = 86
       Top = 12
-      Width = 593
+      Width = 563
       Height = 21
       TabOrder = 0
       OnDblClick = EditExtensionDblClick
@@ -54,7 +62,7 @@ object FormTester: TFormTester
     object EditParameters: TEdit
       Left = 86
       Top = 39
-      Width = 593
+      Width = 563
       Height = 21
       TabOrder = 1
       Text = 'CHILD:302:11:false:'

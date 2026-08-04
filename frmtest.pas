@@ -3,7 +3,8 @@ unit frmtest;
 interface
 
 uses
-  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms, Dialogs, StdCtrls, Vcl.ExtCtrls;
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms, Dialogs, StdCtrls, Vcl.ExtCtrls,
+  Vcl.Buttons;
 
 type
   TDLLFunction = procedure(toArma: PAnsiChar; outputSize: Integer; fromArma: PAnsiChar); stdcall;
@@ -19,10 +20,12 @@ type
     LabelEXT: TLabel;
     LabelFN: TLabel;
     LabelParam: TLabel;
+    SpeedButtonFile: TSpeedButton;
     procedure EditExtensionDblClick(Sender: TObject);
     procedure ButtonExecuteClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure SpeedButtonFileClick(Sender: TObject);
   private
     { Private declarations }
     procedure LoadDLL;
@@ -88,6 +91,11 @@ begin
   end
   else
     MessageDlg('Test application could not load dll', mtError, [mbOK], 0);
+end;
+
+procedure TFormTester.SpeedButtonFileClick(Sender: TObject);
+begin
+if OpenDialog.Execute then EditExtension.Text := OpenDialog.FileName;
 end;
 
 procedure TFormTester.FormShow(Sender: TObject);
