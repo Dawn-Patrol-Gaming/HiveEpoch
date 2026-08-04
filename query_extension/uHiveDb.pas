@@ -341,7 +341,6 @@ end;
 function THiveDatabase.RunOn(Conn: TUniConnection; const SQL: string; const Args: array of Variant; const What: string): Boolean;
 var
   Q: TUniQuery;
-  I: Integer;
   T0: Cardinal;
 begin
   Result := False;
@@ -399,7 +398,6 @@ end;
 
 function THiveDatabase.Query(const SQL: string; const Args: array of Variant): TUniQuery;
 var
-  I: Integer;
   T0: Cardinal;
 begin
   Result := TUniQuery.Create(nil);

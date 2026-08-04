@@ -5,11 +5,11 @@ interface
 uses System.Classes, System.DateUtils, System.IOUtils, System.SysUtils, System.UITypes, System.SyncObjs, System.AnsiStrings, Winapi.Windows;
 
 var
-  AppDir: string;
-  DLLPath: string;
-  DLLFullPath: string;
-  DLLName: string;
-  DLLVersion: string;
+  AppDir: string = '';
+  DLLPath: string = '';
+  DLLFullPath: string = '';
+  DLLName: string = '';
+  DLLVersion: string = '';
   DebugLog: boolean = false;
   LogCriticalSection: TCriticalSection;
 
@@ -39,7 +39,6 @@ function IsHiveRequest(const Request: AnsiString): Boolean;
   back to Arma. }
 function HiveCallExtension(const Request: AnsiString; OutputSize: Integer): AnsiString;
 
-
 implementation
 
 uses dmhive, dmmysql;
@@ -65,10 +64,14 @@ var
   Buffer: array[0..MAX_PATH - 1] of Char;
   Len: DWORD;
 begin
-  Len := Winapi.Windows.GetModuleFileName(HInstance, Buffer, Length(Buffer));
-  if Len = 0 then
-    RaiseLastOSError;
-  SetString(Result, Buffer, Len);
+  try
+    Len := Winapi.Windows.GetModuleFileName(HInstance, Buffer, Length(Buffer));
+    if Len = 0 then
+      RaiseLastOSError;
+    SetString(Result, Buffer, Len);
+  except
+    Result := EmptyStr;
+  end;
 end;
 
 function GetDLLVersion(const FileName: string): string;
@@ -78,24 +81,28 @@ var
   FixedPtr: PVSFixedFileInfo;
   ValueSize: DWORD;
 begin
-  InfoSize := Winapi.Windows.GetFileVersionInfoSize(PChar(FileName), Handle);
-  if InfoSize = 0 then
-    RaiseLastOSError;
+  try
+    InfoSize := Winapi.Windows.GetFileVersionInfoSize(PChar(FileName), Handle);
+    if InfoSize = 0 then
+      RaiseLastOSError;
 
-  SetLength(Buffer, InfoSize);
+    SetLength(Buffer, InfoSize);
 
-  if not Winapi.Windows.GetFileVersionInfo(PChar(FileName), Handle, InfoSize, Buffer) then
-    RaiseLastOSError;
+    if not Winapi.Windows.GetFileVersionInfo(PChar(FileName), Handle, InfoSize, Buffer) then
+      RaiseLastOSError;
 
-  if not Winapi.Windows.VerQueryValue(Buffer, '\', Pointer(FixedPtr), ValueSize) then
-    RaiseLastOSError;
+    if not Winapi.Windows.VerQueryValue(Buffer, '\', Pointer(FixedPtr), ValueSize) then
+      RaiseLastOSError;
 
-  Result := Format('%d.%d.%d.%d', [
-    LongRec(FixedPtr.dwFileVersionMS).Hi,
-    LongRec(FixedPtr.dwFileVersionMS).Lo,
-    LongRec(FixedPtr.dwFileVersionLS).Hi,
-    LongRec(FixedPtr.dwFileVersionLS).Lo
-  ]);
+    Result := Format('%d.%d.%d.%d', [
+        LongRec(FixedPtr.dwFileVersionMS).Hi,
+        LongRec(FixedPtr.dwFileVersionMS).Lo,
+        LongRec(FixedPtr.dwFileVersionLS).Hi,
+        LongRec(FixedPtr.dwFileVersionLS).Lo
+        ]);
+  except
+    Result := EmptyStr;
+  end;
 end;
 
 function GetConfigDir: string;
@@ -105,24 +112,28 @@ var
   I: Integer;
   Arg, Rest, Folder: string;
 begin
-  //  Folder := '@hive';
-  Folder := '';
-  for I := 1 to ParamCount do
-  begin
-    Arg := ParamStr(I);
-    if Length(Arg) < Length(Starter) then
-      Continue;
-    if not SameText(Copy(Arg, 1, Length(Starter)), Starter) then
-      Continue;
-    Rest := Trim(Copy(Arg, Length(Starter) + 1, MaxInt));
-    if Rest <> '' then
-      Folder := Rest;
+  try
+    //  Folder := '@hive';
+    Folder := '';
+    for I := 1 to ParamCount do
+    begin
+      Arg := ParamStr(I);
+      if Length(Arg) < Length(Starter) then
+        Continue;
+      if not SameText(Copy(Arg, 1, Length(Starter)), Starter) then
+        Continue;
+      Rest := Trim(Copy(Arg, Length(Starter) + 1, MaxInt));
+      if Rest <> '' then
+        Folder := Rest;
+    end;
+    if trim(folder) = emptystr then
+      folder := DLLPath;
+    // resolve against the current directory, like Poco::Path::resolve
+    Result := ExpandFileName(IncludeTrailingPathDelimiter(Folder));
+    Result := IncludeTrailingPathDelimiter(Result);
+  except
+    Result := EmptyStr;
   end;
-  if trim(folder) = emptystr then
-    folder := DLLPath;
-  // resolve against the current directory, like Poco::Path::resolve
-  Result := ExpandFileName(IncludeTrailingPathDelimiter(Folder));
-  Result := IncludeTrailingPathDelimiter(Result);
 end;
 
 procedure LogIt(TheMsg: string; TheFile: string = '');
@@ -130,15 +141,19 @@ var
   fs: TFileStream;
   Buf: TBytes;
   FLogFile, TheMessage: string;
-  TheDir, TheTarget: string;
+  TheDir: string;
 begin
+  // Gone once finalization has run. Anything still logging after that is on its
+  // way out, so drop the line rather than fault.
+  if not Assigned(LogCriticalSection) then
+    Exit;
   try
     LogCriticalSection.Enter;
     try
       fs := nil;
       try
         if trim(TheFile) = '' then
-          FLogFile := MakeFileName(AppDir, 'log_'+FormatDateTime('yyyy_mm_dd',now) + '.log')
+          FLogFile := MakeFileName(AppDir, 'log_' + FormatDateTime('yyyy_mm_dd', now) + '.log')
         else
         begin
           TheDir := ExtractFilePath(TheFile);
@@ -156,7 +171,11 @@ begin
         end;
         fs.Seek(0, soFromEnd);
         TheMessage := FormatDateTime('yyyy-mm-dd hh:nn:ssAM/PM', Now) + ' - ' + TheMsg + sLineBreak;
-        Buf := TEncoding.Default.GetBytes(TheMessage);
+        // UTF8, not TEncoding.Default. Default is the machine's ANSI codepage,
+        // so the same player name or classname produced different bytes on
+        // different servers and anything non-ASCII came out mangled. GetBytes
+        // emits no BOM, so appending stays clean.
+        Buf := TEncoding.UTF8.GetBytes(TheMessage);
         fs.Write(Buf[0], Length(Buf));
       finally
         fs.Free;
@@ -189,10 +208,10 @@ begin
     Result := DataModuleHive.CallExtension(Request, OutputSize);
 
     if DataModuleHive.ShutdownRequested then
-      FreeAndNil(DataModuleHive);   // the destructor does the teardown
+      FreeAndNil(DataModuleHive); // the destructor does the teardown
   except
     on E: Exception do
-      Result := '';   // never let anything escape into Arma
+      Result := ''; // never let anything escape into Arma
   end;
 end;
 
@@ -208,6 +227,10 @@ end;
 
 function ReadIniBool(AValue: string; Default: Boolean): Boolean;
 begin
+  // case-insensitive on purpose: Poco's getBool was, so stock HiveExt honours
+  // "True"/"TRUE" in an ini. Comparing raw meant anything but all-lowercase
+  // silently fell through to the default.
+  AValue := LowerCase(Trim(AValue));
 
   if AValue = '' then
     Exit(Default);
@@ -225,18 +248,24 @@ var
   LineString, ParamString: AnsiString;
   Params: TStringList;
   tmpFromArma: string;
-  Dest: PAnsiChar;
-  I: Integer;
   HiveReply: AnsiString;
 begin
-  if not Assigned(LogCriticalSection) then
-    LogCriticalSection := TCriticalSection.Create;
-  AppDir := GetConfigDir;
+  // DLLPath first: GetConfigDir falls back to it when -profiles= is absent, and
+  // an empty fallback resolves to the drive root instead of the DLL folder.
+  if DLLFullPath = EmptyStr then
+    DLLFullPath := GetDLLFullPath;
 
-  DLLFullPath:= GetDLLFullPath;
-  DLLPath := ExtractFilePath(DLLFullPath);
-  DLLName:= TPath.GetFileNameWithoutExtension(DLLFullPath);
-  DLLVersion:= GetDLLVersion(DLLFullPath);
+  if DLLPath = EmptyStr then
+    DLLPath := ExtractFilePath(DLLFullPath);
+
+  if DLLName = EmptyStr then
+    DLLName := TPath.GetFileNameWithoutExtension(DLLFullPath);
+
+  if DLLVersion = EmptyStr then
+    DLLVersion := GetDLLVersion(DLLFullPath);
+
+  if AppDir = EmptyStr then
+    AppDir := GetConfigDir;
 
   if DebugLog then
     LogIt('procedure RVExtension(toArma: PAnsiChar = ' + string(toArma) + ' ; outputSize: Integer = ' + IntToStr(outputSize) +
@@ -286,9 +315,7 @@ begin
         Params.Add(string(ParamString));
         ParamString := AnsiString(EmptyStr);
       until (LineString = AnsiString(EmptyStr)) and (pos(AnsiString(':'), LineString) = 0);
-      SetLength(LineString, outputSize);
-      LineString := DataModuleMySQL.ExecuteFunction(FunctionName, Params);
-      Dest := System.AnsiStrings.StrLCopy(toArma, PAnsiChar(LineString), outputSize);
+      LineString := ExecuteFunction(FunctionName, Params);
     except
       on E: exception do
         if LineString = AnsiString(EmptyStr) then
@@ -297,11 +324,26 @@ begin
           LineString := LineString + ',"' + AnsiString(E.Message) + '"]';
     end;
   finally
+    // Copy here, not in the try. Previously the copy sat before the raise
+    // point, so any exception left toArma untouched and Arma read whatever
+    // happened to be in the buffer - a failure looked like garbage instead of
+    // naming itself.
+    if LineString <> AnsiString(EmptyStr) then
+      System.AnsiStrings.StrLCopy(toArma, PAnsiChar(LineString), outputSize - 1);
     FreeAndNil(Params);
-    // Dispose(Dest)
   end;
 end;
 
+initialization
+  { Owned here, by the unit that declares it. Created before any code can run,
+    so there is no lazy-create race and no ordering assumption about who logs
+    first. Previously it was created on the first RVExtension call and freed by
+    two different datamodules - dmmysql.DeInitializeDLL freed it on a plain
+    "deinitialize:" while the hive worker thread was still logging through it. }
+  LogCriticalSection := TCriticalSection.Create;
+
+finalization
+  FreeAndNil(LogCriticalSection);
 
 end.
 

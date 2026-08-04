@@ -33,12 +33,12 @@ type
 
   public
     { Public declarations }
-    function ExecuteFunction(TheName: string; Parameters: TStrings): AnsiString;
     procedure SetupConnection(var TheDB: TUniConnection; var TheQ: TUniQuery);
   end;
 
 var
   DataModuleMySQL: TDataModuleMySQL;
+function ExecuteFunction(TheName: string; Parameters: TStrings): AnsiString;
 
 implementation
 
@@ -46,7 +46,7 @@ uses common;
 
 {$R *.dfm}
 
-function TDataModuleMySQL.ExecuteFunction(TheName: string; Parameters: TStrings): AnsiString;
+function ExecuteFunction(TheName: string; Parameters: TStrings): AnsiString;
 var
   TmpName: string;
 begin
@@ -54,7 +54,7 @@ begin
     LogIt('Start: function ExecuteFunction(TheName: string = ' + TheName + '; Parameters: TStrings = ' + StringReplace(Parameters.Text, #13#10, ' ',
       [rfReplaceAll]) + '): string;');
   if DataModuleMySQL = nil then
-    DataModuleMySQL := TDataModuleMySQL.Create(nil);
+    DataModuleMySQL := TDataModuleMySQL.Create(nil); //}
   try
     try
       TmpName := trim(lowercase(TheName));
@@ -112,7 +112,7 @@ begin
   begin
     if DebugLog then
       LogIt('procedure SetupConnection(var TheDB: TMySQLDatabase; var TheQ: TMySQLQuery);');
-    TheFileName := MakeFileName(ExtractFilePath(GetDLLFullPath), 'HiveExt.ini');
+    TheFileName := MakeFileName(GetConfigDir, 'HiveExt.ini');
     SettingsFile := TIniFile.Create(TheFileName);
     try
       // do custom retrieval of host information here
@@ -146,8 +146,6 @@ begin
 end;
 
 function TDataModuleMySQL.InitializeDLL(TheParams: TStrings): AnsiString;
-var
-  TheBool: boolean;
 begin
   Result := '[TRUE,[]]';
   try
@@ -170,6 +168,9 @@ begin
     mySQLQueryObjects.Connection := nil;
     if mySQLDatabase.Connected then
       mySQLDatabase.Close;
+    // LogCriticalSection is NOT freed here. "deinitialize:" is a normal runtime
+    // call, and that lock is global to the DLL - the hive worker thread logs
+    // through it. common owns it now and frees it in finalization.
   except
     on E: exception do
       Result := '[FALSE,[' + quotedstr(E.Message) + ']]';
@@ -239,7 +240,6 @@ var
   procedure FillParams(var TheQ: TUniQuery; PositionList, TheParams: TStrings);
   var
     TheCount, TheCounter: Integer;
-    ParamPos: Integer;
     Item, TheVal: string;
     CanDoPrepare: boolean;
   begin
@@ -293,6 +293,11 @@ begin
   InputsList := TStringList.Create;
   OutputList := TStringList.Create;
   TQ := TUniQuery.Create(nil);
+
+  DoBool := false;
+  DoQuote := false;
+  ReturnVal := false;
+  ExecutionType := extSelect;
   try
     try
       I := 0;

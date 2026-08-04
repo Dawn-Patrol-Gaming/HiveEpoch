@@ -19,6 +19,19 @@ unit uSQFValue;
     - the Parameters generator does NOT quote strings; the Value generator does
 }
 
+{
+  W1029 is a C++Builder interop warning, not a Delphi problem. CreateAny and
+  CreateArray both take no parameters (as does the inherited TObject.Create),
+  and C++ maps every Delphi constructor onto the one C++ constructor - so the
+  parameterless ones collide there and all but the first become unreachable
+  FROM C++. Delphi resolves them by name and is unaffected.
+
+  Nothing consumes these classes from C++: this is a Delphi-only DLL whose
+  entire public surface is one stdcall RVExtension. Silenced rather than
+  contorting the constructor names for a language we do not build for.
+}
+{$WARN DUPLICATE_CTOR_DTOR OFF}
+
 interface
 
 uses

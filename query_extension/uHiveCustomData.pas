@@ -384,7 +384,7 @@ var
   Info: TTableInfo;
   Db: THiveDatabase;
   SQL, Frag, Col, ConstStr: string;
-  I, J: Integer;
+  I: Integer;
   Found: Boolean;
   Elem: TSqfValue;
   Op: TWhereOp;

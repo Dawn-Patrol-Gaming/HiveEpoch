@@ -1600,7 +1600,7 @@ begin
       Existing := Q.Fields[0].AsInteger;
   finally
     Q.Free;
-  end;//try..finally
+  end; //try..finally
 
   if Existing < 0 then
     Exit(BoolStatus(False)); // the count query failed; exRes stays false
@@ -1610,7 +1610,7 @@ begin
       'attempt by player with UID: %s ObjectID: %s VG_ServerKey: %s',
       [P[0].AsStringAny, P[12].AsStringAny, P[11].AsStringAny]));
     Exit(BoolStatus(False));
-  end;//if Existing >= 1 then
+  end; //if Existing >= 1 then
 
   Result := BoolStatus(FObjDb.Execute(Format(
     'INSERT INTO `%s` (`PlayerUID`, `Name`, `DisplayName`, `Classname`, `Datestamp`, ' +
@@ -1623,7 +1623,7 @@ begin
       string(P[13].ToSqf), string(P[5].ToSqf), string(P[6].ToSqf),
       P[7].AsDouble, P[8].AsDouble, string(P[9].AsStringAny), string(P[10].AsStringAny),
       string(P[11].AsStringAny), string(P[12].AsStringAny)
-    ]
+      ]
     ));
 end;
 
@@ -1647,7 +1647,7 @@ const
     'BatBarbed_Swing',
     'BatNails_Swing',
     'Fishing_Swing'
-  );
+    );
 var
   Mags: TSqfValue;
   Seen: array[0..6] of Integer;
@@ -1671,12 +1671,13 @@ begin
     if Mags[J].Kind = skString then
     begin
       Item := string(Mags[J].AsStringAny);
-      for K := 0 to High(MeleeAmmo) do if SameText(Item, MeleeAmmo[K]) then
+      for K := 0 to High(MeleeAmmo) do
+        if SameText(Item, MeleeAmmo[K]) then
         begin
           Which := K;
           Break;
-        end;//for K := 0 to High(MeleeAmmo) do if SameText(Item, MeleeAmmo[K]) then
-    end;//if Mags[J].Kind = skString then
+        end; //for K := 0 to High(MeleeAmmo) do if SameText(Item, MeleeAmmo[K]) then
+    end; //if Mags[J].Kind = skString then
 
     if Which >= 0 then
     begin
@@ -1686,10 +1687,10 @@ begin
         Mags.DeleteItem(J);
         Inc(Result);
         Continue; // do not advance, the list shifted
-      end;//if Seen[Which] > 1 then
-    end;//if Which >= 0 then
+      end; //if Seen[Which] > 1 then
+    end; //if Which >= 0 then
     Inc(J);
-  end;//while J < Mags.Count do
+  end; //while J < Mags.Count do
 end;
 
 {
@@ -1753,11 +1754,11 @@ begin
             [FIdField]), [string(PlayerName), string(PlayerId)]);
           FLog.Notice(LoggerName, Format('Changed name of player %s from ''%s'' to ''%s''',
             [PlayerId, Q.Fields[0].AsString, PlayerName]));
-        end;//if AnsiString(Q.Fields[0].AsString) <> PlayerName then
+        end; //if AnsiString(Q.Fields[0].AsString) <> PlayerName then
         PlayerGroup := ParseOrDefault(AnsiString(Q.Fields[2].AsString), '[]');
         PlayerCoins := Q.Fields[3].AsLargeInt;
         BankCoins := Q.Fields[4].AsLargeInt;
-      end//if (Q <> nil) and not Q.EOF then
+      end //if (Q <> nil) and not Q.EOF then
       else
       begin
         NewPlayer := True;
@@ -1767,10 +1768,10 @@ begin
           [string(PlayerId), string(PlayerName), string(PlayerGroup.ToSqf)]);
         FLog.Information(LoggerName, Format('Created a new player %s named ''%s''',
           [PlayerId, PlayerName]));
-      end;//if..then..else if (Q <> nil) and not Q.EOF then
+      end; //if..then..else if (Q <> nil) and not Q.EOF then
     finally
       Q.Free;
-    end;//try..finally
+    end; //try..finally
 
     //current living character, if any
     Q := FDb.Query(Format(
@@ -1792,7 +1793,7 @@ begin
         begin
           Inventory := ParseOrDefault(AnsiString(Q.Fields[2].AsString), '[]');
           SanitiseInv(Inventory);
-        end;//if..then..else if Q.Fields[2].IsNull then
+        end; //if..then..else if Q.Fields[2].IsNull then
         if Q.Fields[3].IsNull then
           Backpack := TSqfValue.CreateArray
         else
@@ -1806,7 +1807,7 @@ begin
 
         Model := ModelFromDb(AnsiString(Q.Fields[7].AsString));
         CharacterCoins := Q.Fields[9].AsLargeInt;
-      end;//if not NewChar then
+      end; //if not NewChar then
     finally
       Q.Free;
     end;
@@ -1827,10 +1828,10 @@ begin
           Humanity := Q.Fields[1].AsInteger;
           Model := ModelFromDb(AnsiString(Q.Fields[2].AsString));
           Infected := Q.Fields[3].AsInteger;
-        end;//if (Q <> nil) and not Q.EOF then
+        end; //if (Q <> nil) and not Q.EOF then
       finally
         Q.Free;
-      end;//try..finally
+      end; //try..finally
 
       WorldSpace := TSqfValue.CreateArray;
       Inventory := TSqfValue.CreateArray;
@@ -1847,7 +1848,7 @@ begin
       begin
         FLog.Error(LoggerName, 'Error creating character for playerId ' + string(PlayerId));
         Exit(StatusValue('ERROR'));
-      end;//if not FDb.DirectExecute
+      end; //if not FDb.DirectExecute
 
       Q := FDb.Query(Format('SELECT `CharacterID` FROM `Character_DATA` WHERE `%s` = :p0 ' +
         'AND `Alive` = 1 ORDER BY `CharacterID` DESC LIMIT 1', [FIdField]), [string(PlayerId)]);
@@ -1856,11 +1857,11 @@ begin
         begin
           FLog.Error(LoggerName, 'Error fetching created character for playerId ' + string(PlayerId));
           Exit(StatusValue('ERROR'));
-        end;//if (Q = nil) or Q.EOF then
+        end; //if (Q = nil) or Q.EOF then
         CharacterId := Q.Fields[0].AsLargeInt;
       finally
         Q.Free;
-      end;//try..finally
+      end; //try..finally
       FLog.Information(LoggerName, Format('Created a new character %d for player ''%s'' (%s)', [CharacterId, PlayerName, PlayerId]));
     end;
 
@@ -1887,7 +1888,7 @@ begin
       Result.Add(Survival);
       Survival := nil;
       Result.Add(TSqfValue.CreateInt64(CharacterCoins));
-    end//if not NewChar then
+    end //if not NewChar then
     else
       Result.Add(TSqfValue.CreateInt32(Infected));
     Result.Add(TSqfValue.CreateStr(Model));
@@ -1968,13 +1969,13 @@ var
     Names.Add(AName);
     Pars.AddOrSetValue(AName, Args.Count);
     Args.Add(AValue);
-  end;//procedure PutParam(const AName, AValue: string);
+  end; //procedure PutParam(const AName, AValue: string);
 
   procedure PutLiteral(const AName, AExpr: string);
   begin
     Names.Add(AName);
     Lits.AddOrSetValue(AName, AExpr);
-  end;//procedure PutLiteral(const AName, AExpr: string);
+  end; //procedure PutLiteral(const AName, AExpr: string);
 
   procedure AddArrayField(const AName: string; Idx: Integer);
   begin
@@ -1983,7 +1984,7 @@ var
     if (P[Idx].Kind <> skArray) or (P[Idx].Count = 0) then
       Exit;
     PutParam(AName, string(P[Idx].ToSqf));
-  end;//procedure AddArrayField(const AName: string; Idx: Integer);
+  end; //procedure AddArrayField(const AName: string; Idx: Integer);
 
   procedure AddAdditive(const AName: string; Idx: Integer);
   var
@@ -1996,19 +1997,19 @@ var
       Amount := Trunc(P[Idx].AsDouble);
     except
       Exit;
-    end;//try..except
+    end; //try..except
     if Amount = 0 then
       Exit;
     if Amount < 0 then
     begin
       Sign := '-';
       Amount := Abs(Amount);
-    end//if Amount < 0 then
+    end //if Amount < 0 then
     else
       Sign := '+';
     // the C++ builds "(`Name` + N)" inline, so this stays a literal
     PutLiteral(AName, Format('(`%s` %s %d)', [AName, Sign, Amount]));
-  end;//procedure AddAdditive(const AName: string; Idx: Integer);
+  end; //procedure AddAdditive(const AName: string; Idx: Integer);
 
 begin
   CharacterId := P[0].AsBigInt;
@@ -2034,7 +2035,7 @@ begin
           P[4].ReplaceWithEmptyArray(I);
         end;
       PutParam('Medical', string(P[4].ToSqf));
-    end;//if (4 < P.Count) and not P[4].IsNull and (P[4].Kind = skArray) and (P[4].Count > 0) then
+    end; //if (4 < P.Count) and not P[4].IsNull and (P[4].Kind = skArray) and (P[4].Count > 0) then
 
     if (5 < P.Count) and not P[5].IsNull and P[5].AsBoolAny then
       PutLiteral('LastAte', 'CURRENT_TIMESTAMP');
@@ -2059,7 +2060,7 @@ begin
           PutLiteral('Coins', IntToStr(P[16].AsBigInt));
       except
         // not using the coin system
-      end;//try..except if (16 < P.Count) and not P[16].IsNull then
+      end; //try..except if (16 < P.Count) and not P[16].IsNull then
 
     // which fields survived the "only write what changed" filtering - the
     // usual complaint is that some stat is not persisting
@@ -2143,13 +2144,13 @@ begin
     FLog.Information(LoggerName, 'SQF Failed to pass player bank value, skipping column: `BankCoins` update');
     Ok := FDb.Execute(Format('UPDATE `Player_DATA` SET `PlayerCoins`=:p0 WHERE `%s`=:p1',
       [FIdField]), [Coins, PlayerId]);
-  end//else if Coins >= 0 then
+  end //else if Coins >= 0 then
   else if Bank >= 0 then
   begin
     FLog.Information(LoggerName, 'SQF Failed to pass player coins value, skipping column: `PlayerCoins` update');
     Ok := FDb.Execute(Format('UPDATE `Player_DATA` SET `BankCoins`=:p0 WHERE `%s`=:p1',
       [FIdField]), [Bank, PlayerId]);
-  end//else if Bank >= 0 then
+  end //else if Bank >= 0 then
   else
     FLog.Information(LoggerName, 'SQF Failed to pass both player coins and player bank values skipping update');
   Result := BoolStatus(Ok);
@@ -2171,20 +2172,20 @@ begin
     begin
       FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
-    end;//if P.Count < 2 then
+    end; //if P.Count < 2 then
 
     if (P[0].Kind <> skString) or (P[0].AsStringAny <> 'CHILD') then
     begin
       FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
-    end;//if (P[0].Kind <> skString) or (P[0].AsStringAny <> 'CHILD') then
+    end; //if (P[0].Kind <> skString) or (P[0].AsStringAny <> 'CHILD') then
 
     try
       FuncNum := P[1].AsIntAny;
     except
       FLog.Error(LoggerName, 'Invalid function format: ' + string(Request));
       Exit;
-    end;//try..except
+    end; //try..except
 
     // drop CHILD and the method id, so handlers index from 0 like the C++
     P.Delete(0);
@@ -2235,14 +2236,14 @@ begin
         else
           FLog.Error(LoggerName, 'Invalid method id: ' + IntToStr(FuncNum));
           Exit;
-        end;//case FuncNum of
+        end; //case FuncNum of
       except
         on E: Exception do
         begin
           FLog.Error(LoggerName, 'Error executing |' + string(Request) + '|');
           Exit;
-        end;//on E: Exception do
-      end;//try..except
+        end; //on E: Exception do
+      end; //try..except
 
       Result := Res.ToSqf;
       FLog.Information(LoggerName, 'Result: ' + string(Result));
@@ -2252,7 +2253,7 @@ begin
       begin
         FLog.Error(LoggerName, Format('Output size too big (%d) for request : %s', [Length(Result), string(Request)]));
         Result := '';
-      end;//if Length(Result) >= OutputSize then
+      end; //if Length(Result) >= OutputSize then
     finally
       Res.Free;
     end;

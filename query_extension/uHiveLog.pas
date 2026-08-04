@@ -32,8 +32,8 @@ type
 
   THiveLogger = class
   private
-    FLock: TCriticalSection;
-    FStream: TFileStream;
+    { no lock or stream here on purpose - LogIt owns both. Fields that implied
+      this class serialised anything were removed; it only formats and filters. }
     FPath: string;
     FLevel: THiveLogLevel;
   public
